@@ -31,6 +31,27 @@ services:
       - key: DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED
         value: "false"
 
+      - key: NODE_ENV
+        value: production
+
+      # Optional: enforce SSL mode for Neon
+      - key: DB_POSTGRESDB_SSL_MODE
+        value: require
+
+      # Security + user management
+      - key: N8N_BASIC_AUTH_ACTIVE
+        value: "false"
+      - key: N8N_USER_MANAGEMENT_DISABLED
+        value: "false"
+
+      # Avoid webhook deregistration on shutdown
+      - key: N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN
+        value: "true"
+
+      # Enforce correct config file permissions
+      - key: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+        value: "true"
+
     region: oregon
     autoDeployTrigger: commit
 version: "1"
