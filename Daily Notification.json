@@ -1,0 +1,321 @@
+{
+  "name": "Daily Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/14UFFeBvLaoLh1k-rEtcFG7F4Rqd15HEq56cg7zVpciE/edit?gid=1500590364#gid=1500590364",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.matchedTitle }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        896,
+        80
+      ],
+      "id": "c88b9ecb-729f-4968-956e-6570965891ab",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "grp51mMpr5593EhI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = items[3].json;\nlet lastDate = null;\n\nfor (const key in row) {\n  if (row[key]) {\n    lastDate = row[key];\n  } else if (lastDate) {\n    row[key] = lastDate;\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        80
+      ],
+      "id": "8e5205d6-2cad-4f1c-8dfc-8f7a9a3557ea",
+      "name": "Smooth Date Row"
+    },
+    {
+      "parameters": {
+        "jsCode": "let fullName = null;\n\nconst result = items.map(item => {\n  const current = item.json.col_2;\n  \n  if (current && current !== \"\") {\n    fullName = current; // lưu tên mới\n  }\n\n  return {\n    json: {\n      ...item.json,\n      col_2: fullName // gán tên hiện tại hoặc tên gần nhất phía trên\n    }\n  };\n});\n\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        80
+      ],
+      "id": "a9e21280-9b82-4b36-89af-6adf80e421e8",
+      "name": "Smooth Name Column"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Làm mịn dòng ngày (items[3])\nconst dateRow = items[3].json;\nlet lastDate = null;\nconst dateMap = {};\n\nfor (const key in dateRow) {\n  if (dateRow[key]) {\n    lastDate = dateRow[key]; // giữ nguyên định dạng dd/MM/yyyy\n  }\n  dateMap[key] = lastDate;\n}\n\n// 2. Lấy ngày hôm nay dạng dd/MM/yyyy\nconst now = new Date();\n\n// Tính giờ Việt Nam (GMT+7)\nconst vnOffset = 7 * 60; // phút\nconst localTime = new Date(now.getTime() + vnOffset * 60 * 1000);\n\n// Format dd/MM/yyyy\nconst todayStr = localTime.toLocaleDateString('vi-VN', {\n  day: '2-digit',\n  month: '2-digit',\n  year: 'numeric'\n});\n\n// 3. Lọc theo tên và ngày hôm nay\nconst result = [];\n\nfor (let i = 4; i < items.length; i++) {\n  const row = items[i].json;\n\n  if (row.col_2 === \"Phạm Thị Hồng Điệp\") {\n    for (const key in row) {\n      if (\n        key.startsWith(\"col_\") &&\n        key !== \"col_2\" &&\n        key !== \"col_1\" &&\n        row[key]\n      ) {\n        const date = dateMap[key];\n\n        if (date === todayStr) {\n          result.push({\n            json: {\n              name: \"Phạm Thị Hồng Điệp\",\n              date,\n              location: row[key]\n            }\n          });\n        }\n      }\n    }\n  }\n}\n\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        80
+      ],
+      "id": "e3498a13-d2a5-4952-8b5b-608e0ff04da6",
+      "name": "Get Assignments for Điệp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const records = $input.all(); // hoặc dùng data trực tiếp nếu cần\n\nif (!records.length) {\n  return [{ json: { subject: \"Không có lịch học hôm nay\", body: \"Không tìm thấy dữ liệu lịch học.\" } }];\n}\n\nconst name = records[0].json.name;\nconst date = records[0].json.date;\n\n// Lấy danh sách location duy nhất\nconst uniqueLocations = [...new Set(records.map(item => item.json.location))];\n\n// Tạo body\nlet body = `Chào bạn ${name} 👋,\\n\\n`;\nbody += `Dưới đây là lịch làm việc của bạn cho ngày ${date}:\\n\\n`;\nuniqueLocations.forEach(location => {\n  body += `- 📍 ${location}\\n`;\n});\nbody += `\\nChúc bạn một ngày làm việc hiệu quả và nhiều niềm vui! 🎉`;\n\nreturn [{ json: { body } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        80
+      ],
+      "id": "1bf72ff5-202e-43cc-960d-eac6f53c1021",
+      "name": "Combine Notifications"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/1397833160313798719/IcthHQGPRgwFAikuRM5UswTjbTwWinoqa6Ht5h_WLBF4l7Rmy7FTMQv0xw7bnuWp7jFu",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.body }} {{ $json.matchedTitle }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        0
+      ],
+      "id": "8438a6f7-d086-4d35-acc3-8b4e947b46c3",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/14UFFeBvLaoLh1k-rEtcFG7F4Rqd15HEq56cg7zVpciE?fields=sheets.properties.title",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "01bce836-b4a8-48cd-a0b2-d1df8b7e7ae7",
+      "name": "HTTP Request1",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "9PRxAmeXZ4QTjBMd",
+          "name": "GG Oauth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy ngày hôm nay\nconst today = new Date();\nconst todayTime = today.getTime();\n\n// Hàm chuyển chuỗi \"dd/mm\" thành Date object cùng năm hiện tại\nfunction parseDate(ddmm) {\n  const [day, month] = ddmm.split('/').map(Number);\n  return new Date(today.getFullYear(), month - 1, day);\n}\n\nconst dataJson = $input.all();\n\n// Tìm sheet có ngày hôm nay nằm trong khoảng ngày\nlet matchedSheet;\ndataJson.find(sheets => {\n  matchedSheet = sheets.json.sheets.find(sheet => {\n    const title = sheet.properties.title;\n\n    const match = title.match(/(\\d{1,2}\\/\\d{1,2})-(\\d{1,2}\\/\\d{1,2})/);\n   \n    if (!match) return false;\n\n    const start = parseDate(match[1]).getTime();\n    const end = parseDate(match[2]).getTime();\n\n    return todayTime >= start && todayTime <= end;\n  })\n  return matchedSheet;\n});\n\nconsole.log('matchedSheet',matchedSheet);\n// Trả ra kết quả\nreturn [{\n  json: {\n    matchedTitle: matchedSheet?.properties.title || \"Không tìm thấy sheet phù hợp\"\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "444a9f6b-3e31-4fd0-b574-edf007745ba6",
+      "name": "Get Sheetname"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a007ad50-7649-4691-8367-944812e609fd",
+              "leftValue": "={{ $json.matchedTitle }}",
+              "rightValue": "Không tìm thấy sheet phù hợp",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "2aaea809-77ec-40df-ac8b-e11ff3feb5e1",
+      "name": "Not found sheet?"
+    },
+    {
+      "parameters": {
+        "path": "c1f539fb-1988-461a-970b-eda010839cc7",
+        "authentication": "basicAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e173a71f-c7b9-43e8-b814-6e112ffc9bfa",
+      "name": "Webhook",
+      "webhookId": "c1f539fb-1988-461a-970b-eda010839cc7",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "4qfCHu3c8qL8oaHB",
+          "name": "Base Auth"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Smooth Date Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smooth Date Row": {
+      "main": [
+        [
+          {
+            "node": "Smooth Name Column",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smooth Name Column": {
+      "main": [
+        [
+          {
+            "node": "Get Assignments for Điệp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Assignments for Điệp": {
+      "main": [
+        [
+          {
+            "node": "Combine Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Notifications": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Get Sheetname",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sheetname": {
+      "main": [
+        [
+          {
+            "node": "Not found sheet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not found sheet?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "da400bea-f253-4103-ab54-ef27d4629bf1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "babb6186b9420d1a507cee260e9064bc340c73c65ea298d947d0c071353caa6c"
+  },
+  "id": "ApqP1Mx2WzeL9MoV",
+  "tags": []
+}
